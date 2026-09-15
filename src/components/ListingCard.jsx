@@ -1,8 +1,14 @@
 import { MapPin } from 'lucide-react';
 
 export default function ListingCard({ listing, onSelect }) {
-  const image = listing.images?.[0] || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&q=80';
-  const isSold = listing.status === 'sold';
+  // Check image_url first (from CreateListingModal), then images array, then fallback
+  const image = 
+    listing.image_url || 
+    listing.images?.[0] || 
+    'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=500&q=80';
+    
+  const isSold = listing.is_sold || listing.status === 'sold';
+  const hotspot = listing.campus_zone || listing.location || 'Campus Hotspot';
 
   return (
     <div 
@@ -37,19 +43,19 @@ export default function ListingCard({ listing, onSelect }) {
           <p className="text-slate-400 text-xs mt-1 line-clamp-2">
             {listing.description || 'No description provided.'}
           </p>
+
+          {/* KhaooGully-style Campus Pickup Hotspot Badge */}
+          <div className="mt-2.5 inline-flex items-center space-x-1 text-[11px] font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 rounded-lg px-2.5 py-1">
+            <MapPin size={12} className="text-emerald-400 shrink-0" />
+            <span className="truncate">{hotspot}</span>
+          </div>
         </div>
 
-        <div className="mt-3 space-y-2 pt-2 border-t border-slate-800/80">
-          <div className="flex items-center text-xs text-slate-400 truncate gap-1">
-            <MapPin size={12} className="text-indigo-400 shrink-0" />
-            <span className="truncate">{listing.location || 'Campus 3'}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-lg font-bold text-white">₹{listing.price}</span>
-            <span className="text-xs text-slate-500">
-              {new Date(listing.created_at).toLocaleDateString()}
-            </span>
-          </div>
+        <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between">
+          <span className="text-lg font-bold text-white">₹{listing.price}</span>
+          <span className="text-xs text-slate-500">
+            {listing.created_at ? new Date(listing.created_at).toLocaleDateString() : 'Just now'}
+          </span>
         </div>
       </div>
     </div>
