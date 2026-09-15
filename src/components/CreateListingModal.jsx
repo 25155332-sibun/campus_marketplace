@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -7,44 +7,106 @@ import {
   Loader2,
   Sparkles,
   MapPin,
+  Clock,
+  Flame,
+  FileText,
+  Truck,
+  RotateCcw,
+  Wrench,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  KIIT_HOTSPOTS,
+  CATEGORIES,
+  SEMESTER_BUNDLES,
+  MEETUP_WINDOWS,
+} from '../constants/campus';
 
-const CAMPUS_HOTSPOTS = [
-  'Campus 3',
-  'Campus 6',
-  'Campus 12',
-  'Campus 15',
-  'SAC (Student Activity Centre)',
-  'KP Boys Hostels',
-  'QC Girls Hostels',
-  'King Palace / Central Library',
-];
+const PICKUP_HOTSPOTS = (KIIT_HOTSPOTS || []).filter(
+  (spot) => spot !== 'All Spots'
+);
 
-const CATEGORIES = [
-  'Books',
-  'Cycles',
-  'Electronics',
-  'Others',
-];
+const LISTING_CATEGORIES = (CATEGORIES || []).filter(
+  (cat) => cat !== 'All'
+);
 
 export default function CreateListingModal({ isOpen, onClose }) {
   const { user } = useAuth();
   const fileInputRef = useRef(null);
 
+  // -----------------------------
+  // BASIC LISTING
+  // -----------------------------
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
-  const [category, setCategory] = useState(CATEGORIES[0]);
-  const [campusZone, setCampusZone] = useState(CAMPUS_HOTSPOTS[0]);
+  const [originalPrice, setOriginalPrice] = useState('');
 
+  const [category, setCategory] = useState(
+    LISTING_CATEGORIES[0] || 'Textbooks & Notes'
+  );
+
+  const [campusZone, setCampusZone] = useState(
+    PICKUP_HOTSPOTS[0] || 'Campus 3 (Library & KSOM)'
+  );
+
+  const [meetupWindow, setMeetupWindow] = useState(
+    MEETUP_WINDOWS?.[0] || 'Flexible / Anytime'
+  );
+
+  const [targetSemester, setTargetSemester] = useState(
+    SEMESTER_BUNDLES?.[0] || 'All Kits'
+  );
+
+  // -----------------------------
+  // FEATURE 1: FLASH CLEARANCE
+  // -----------------------------
+  const [isClearance, setIsClearance] = useState(false);
+  const [clearanceHours, setClearanceHours] = useState('48');
+
+  // -----------------------------
+  // FEATURE 2: HOSTEL DELIVERY
+  // -----------------------------
+  const [offersDelivery, setOffersDelivery] = useState(false);
+  const [deliveryTip, setDeliveryTip] = useState('30');
+
+  // -----------------------------
+  // FEATURE 3: BICYCLE HEALTH
+  // -----------------------------
+  const [frameSerialNo, setFrameSerialNo] = useState('');
+  const [bikeTires, setBikeTires] = useState('Good / Inflated');
+  const [bikeBrakes, setBikeBrakes] = useState('Fully Functional');
+  const [bikeGears, setBikeGears] = useState(
+    'Smooth Shifting / Non-Gear'
+  );
+  const [bikeLock, setBikeLock] = useState(true);
+
+  // -----------------------------
+  // FEATURE 4: BUYBACK
+  // -----------------------------
+  const [hasBuyback, setHasBuyback] = useState(false);
+  const [buybackPrice, setBuybackPrice] = useState('');
+
+  // -----------------------------
+  // FEATURE 5: PYQ
+  // -----------------------------
+  const [includesPyq, setIncludesPyq] = useState(false);
+  const [syllabusYear, setSyllabusYear] = useState(
+    '2024-2025 Revised Autonomous Scheme'
+  );
+
+  // -----------------------------
+  // IMAGE / UI
+  // -----------------------------
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
 
   const [loading, setLoading] = useState(false);
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
 
-  // Clean up image preview URL
+  // -----------------------------
+  // CLEAN IMAGE PREVIEW
+  // -----------------------------
   useEffect(() => {
     return () => {
       if (imagePreview) {
@@ -53,34 +115,86 @@ export default function CreateListingModal({ isOpen, onClose }) {
     };
   }, [imagePreview]);
 
-  if (!isOpen) {
-    return null;
-  }
+  // -----------------------------
+  // RESET FORM
+  // -----------------------------
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setPrice('');
+    setOriginalPrice('');
 
-  // =========================
-  // IMAGE SELECTION
-  // =========================
+    setCategory(
+      LISTING_CATEGORIES[0] || 'Textbooks & Notes'
+    );
 
+    setCampusZone(
+      PICKUP_HOTSPOTS[0] || 'Campus 3 (Library & KSOM)'
+    );
+
+    setMeetupWindow(
+      MEETUP_WINDOWS?.[0] || 'Flexible / Anytime'
+    );
+
+    setTargetSemester(
+      SEMESTER_BUNDLES?.[0] || 'All Kits'
+    );
+
+    setIsClearance(false);
+    setClearanceHours('48');
+
+    setOffersDelivery(false);
+    setDeliveryTip('30');
+
+    setFrameSerialNo('');
+    setBikeTires('Good / Inflated');
+    setBikeBrakes('Fully Functional');
+    setBikeGears('Smooth Shifting / Non-Gear');
+    setBikeLock(true);
+
+    setHasBuyback(false);
+    setBuybackPrice('');
+
+    setIncludesPyq(false);
+    setSyllabusYear('2024-2025 Revised Autonomous Scheme');
+
+    setImageFile(null);
+    setImagePreview(null);
+
+    setLoading(false);
+    setAiAnalyzing(false);
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // -----------------------------
+  // CLOSE
+  // -----------------------------
+  const handleClose = () => {
+    if (loading || aiAnalyzing) return;
+
+    resetForm();
+    onClose();
+  };
+
+  // -----------------------------
+  // IMAGE
+  // -----------------------------
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
 
     if (!file) return;
 
-    // Only allow images
     if (!file.type.startsWith('image/')) {
-      toast.error('Please select a valid image file');
+      toast.error('Please select a valid image');
       return;
     }
 
-    // Maximum 5MB
     if (file.size > 5 * 1024 * 1024) {
       toast.error('Image size must be under 5MB');
       return;
-    }
-
-    // Remove old preview URL
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
     }
 
     setImageFile(file);
@@ -88,10 +202,6 @@ export default function CreateListingModal({ isOpen, onClose }) {
   };
 
   const handleRemoveImage = () => {
-    if (imagePreview) {
-      URL.revokeObjectURL(imagePreview);
-    }
-
     setImageFile(null);
     setImagePreview(null);
 
@@ -100,10 +210,9 @@ export default function CreateListingModal({ isOpen, onClose }) {
     }
   };
 
-  // =========================
+  // -----------------------------
   // AI OPTIMIZATION
-  // =========================
-
+  // -----------------------------
   const handleAiOptimize = async () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
@@ -117,29 +226,32 @@ export default function CreateListingModal({ isOpen, onClose }) {
       return;
     }
 
+    if (aiAnalyzing || loading) return;
+
     setAiAnalyzing(true);
 
     try {
       const prompt = `
-You are an AI assistant for a student campus marketplace.
+Rewrite this student marketplace listing for KIIT.
 
-Rewrite the following item listing to make it:
-- appealing
+Make the title and description:
 - clear
 - concise
 - trustworthy
-- suitable for university students
+- appealing to university students
+- honest and not exaggerated
 
-Title: "${title}"
+Title:
+${title}
 
-Description: "${description || 'None provided'}"
+Description:
+${description || 'None provided'}
 
-Category: "${category}"
+Category:
+${category}
 
-Respond ONLY with valid JSON.
-Do not include markdown or code fences.
+Return ONLY valid JSON in this exact format:
 
-Use exactly this structure:
 {
   "suggestedTitle": "...",
   "suggestedDescription": "..."
@@ -167,11 +279,13 @@ Use exactly this structure:
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`Gemini API error: ${response.status}`);
-      }
-
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data?.error?.message || 'Gemini API request failed'
+        );
+      }
 
       const rawText =
         data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -188,274 +302,397 @@ Use exactly this structure:
       const parsed = JSON.parse(cleanedJson);
 
       if (parsed.suggestedTitle) {
-        setTitle(parsed.suggestedTitle);
+        setTitle(parsed.suggestedTitle.trim());
       }
 
       if (parsed.suggestedDescription) {
-        setDescription(parsed.suggestedDescription);
+        setDescription(parsed.suggestedDescription.trim());
       }
 
-      toast.success('Listing polished with Gemini AI!');
+      toast.success('Listing enhanced with Gemini AI!');
     } catch (error) {
-      console.error('Gemini optimization error:', error);
-      toast.error('Could not optimize the listing with AI');
+      console.error('AI optimization error:', error);
+      toast.error(
+        error.message || 'AI optimization failed'
+      );
     } finally {
       setAiAnalyzing(false);
     }
   };
 
-  // =========================
-  // CREATE LISTING
-  // =========================
-
+  // -----------------------------
+  // SUBMIT
+  // -----------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!user) {
-      toast.error('Please log in before creating a listing');
+      toast.error('Sign in required');
       return;
     }
 
     if (!title.trim()) {
-      toast.error('Please enter a title');
-      return;
-    }
-
-    if (!description.trim()) {
-      toast.error('Please enter a description');
+      toast.error('Title is required');
       return;
     }
 
     if (!price || Number(price) < 0) {
-      toast.error('Please enter a valid price');
+      toast.error('Enter a valid selling price');
       return;
+    }
+
+    if (originalPrice && Number(originalPrice) < 0) {
+      toast.error('Enter a valid original price');
+      return;
+    }
+
+    if (
+      originalPrice &&
+      Number(originalPrice) < Number(price)
+    ) {
+      toast.error(
+        'Retail MRP should normally be greater than the selling price'
+      );
+      return;
+    }
+
+    if (isClearance) {
+      const hours = Number(clearanceHours);
+
+      if (!hours || hours <= 0) {
+        toast.error('Enter valid clearance hours');
+        return;
+      }
+    }
+
+    if (offersDelivery) {
+      const tip = Number(deliveryTip);
+
+      if (!tip || tip < 0) {
+        toast.error('Enter a valid delivery tip');
+        return;
+      }
+    }
+
+    if (hasBuyback) {
+      const buyback = Number(buybackPrice);
+
+      if (!buyback || buyback < 0) {
+        toast.error('Enter a valid buyback price');
+        return;
+      }
     }
 
     setLoading(true);
 
+    let uploadedFilePath = null;
+
     try {
+      // -----------------------------
+      // IMAGE UPLOAD
+      // -----------------------------
       let imageUrl = null;
 
-      // =========================
-      // UPLOAD IMAGE
-      // =========================
-
       if (imageFile) {
-        const fileExtension =
+        const extension =
           imageFile.name.split('.').pop()?.toLowerCase() || 'jpg';
 
-        const fileName = `${user.id}-${Date.now()}.${fileExtension}`;
+        const fileName = `${user.id}/${Date.now()}-${Math.random()
+          .toString(36)
+          .substring(2, 8)}.${extension}`;
 
-        const filePath = `listings/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from('listing-images')
-          .upload(filePath, imageFile, {
-            cacheControl: '3600',
-            upsert: false,
-          });
+        const { error: uploadError } =
+          await supabase.storage
+            .from('listing-images')
+            .upload(fileName, imageFile, {
+              cacheControl: '3600',
+              upsert: false,
+              contentType: imageFile.type,
+            });
 
         if (uploadError) {
-          console.error('Image upload error:', uploadError);
-          throw new Error('Failed to upload image');
+          throw new Error(
+            `Image upload failed: ${uploadError.message}`
+          );
         }
 
-        const { data: publicUrlData } = supabase.storage
-          .from('listing-images')
-          .getPublicUrl(filePath);
+        uploadedFilePath = fileName;
 
-        imageUrl = publicUrlData?.publicUrl || null;
+        const { data: publicData } =
+          supabase.storage
+            .from('listing-images')
+            .getPublicUrl(fileName);
+
+        imageUrl = publicData?.publicUrl || null;
       }
 
-      // =========================
-      // INSERT LISTING
-      // =========================
+      // -----------------------------
+      // CLEARANCE DEADLINE
+      // -----------------------------
+      let clearanceDeadline = null;
 
-      const { data, error } = await supabase
-        .from('listings')
-        .insert([
-          {
-            user_id: user.id,
-            title: title.trim(),
-            description: description.trim(),
-            price: Number(price),
-            category,
-            location: campusZone,
-            image_url: imageUrl,
-          },
-        ])
-        .select()
-        .single();
+      if (isClearance) {
+        const deadline = new Date();
 
-      if (error) {
-        console.error('Create listing error:', error);
-        throw error;
+        deadline.setHours(
+          deadline.getHours() + Number(clearanceHours)
+        );
+
+        clearanceDeadline = deadline.toISOString();
       }
 
-      console.log('Listing created:', data);
+      // -----------------------------
+      // LISTING DATA
+      // -----------------------------
+      const listingData = {
+        user_id: user.id,
 
-      toast.success('Listing created successfully!');
+        title: title.trim(),
+        description: description.trim(),
 
-      // Reset form
-      setTitle('');
-      setDescription('');
-      setPrice('');
-      setCategory(CATEGORIES[0]);
-      setCampusZone(CAMPUS_HOTSPOTS[0]);
-      setImageFile(null);
+        price: Number(price),
 
-      if (imagePreview) {
-        URL.revokeObjectURL(imagePreview);
+        original_price: originalPrice
+          ? Number(originalPrice)
+          : null,
+
+        category,
+
+        campus_zone: campusZone,
+
+        meetup_window: meetupWindow,
+
+        target_semester: targetSemester,
+
+        image_url: imageUrl,
+
+        is_sold: false,
+
+        // Flash clearance
+        is_clearance: isClearance,
+        clearance_deadline: clearanceDeadline,
+
+        // Hostel delivery
+        offers_hostel_delivery: offersDelivery,
+        delivery_tip_amount: offersDelivery
+          ? Number(deliveryTip)
+          : null,
+
+        // Bicycle information
+        frame_serial_no:
+          category === 'Bicycles & Mobility'
+            ? frameSerialNo.trim() || null
+            : null,
+
+        bike_tires_condition:
+          category === 'Bicycles & Mobility'
+            ? bikeTires
+            : null,
+
+        bike_brakes_condition:
+          category === 'Bicycles & Mobility'
+            ? bikeBrakes
+            : null,
+
+        bike_gears_condition:
+          category === 'Bicycles & Mobility'
+            ? bikeGears
+            : null,
+
+        bike_has_lock_or_bill:
+          category === 'Bicycles & Mobility'
+            ? bikeLock
+            : false,
+
+        // Buyback
+        promised_buyback: hasBuyback,
+
+        buyback_price:
+          hasBuyback && buybackPrice
+            ? Number(buybackPrice)
+            : null,
+
+        // Academic material
+        includes_pyq_notes:
+          category === 'Textbooks & Notes'
+            ? includesPyq
+            : false,
+
+        syllabus_year:
+          category === 'Textbooks & Notes'
+            ? syllabusYear
+            : null,
+      };
+
+      // -----------------------------
+      // INSERT
+      // -----------------------------
+      const { error: insertError } =
+        await supabase
+          .from('listings')
+          .insert([listingData]);
+
+      if (insertError) {
+        throw new Error(insertError.message);
       }
 
-      setImagePreview(null);
+      toast.success('Listing published successfully!');
 
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-
+      resetForm();
       onClose();
     } catch (error) {
-      console.error('Error creating listing:', error);
+      console.error('Listing creation error:', error);
+
+      // If DB insertion fails after image upload,
+      // remove the uploaded image so storage isn't polluted.
+      if (uploadedFilePath) {
+        await supabase.storage
+          .from('listing-images')
+          .remove([uploadedFilePath]);
+      }
 
       toast.error(
-        error?.message || 'Failed to create listing. Please try again.'
+        error?.message || 'Listing creation failed'
       );
     } finally {
       setLoading(false);
     }
   };
 
-  // =========================
-  // UI
-  // =========================
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
 
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
+      <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-800 bg-slate-900 p-6 text-slate-100 shadow-2xl">
 
-        {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 bg-slate-900 border-b border-slate-800">
+        {/* HEADER */}
+        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
 
           <div>
-            <h2 className="text-lg font-semibold text-white">
-              Create Listing
+            <h2 className="text-lg font-bold text-white">
+              List an Item
             </h2>
 
-            <p className="text-xs text-slate-400 mt-1">
-              Sell or exchange something with fellow students
+            <p className="text-xs text-slate-400">
+              KIIT student-to-student marketplace
             </p>
           </div>
 
           <button
             type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition"
+            onClick={handleClose}
+            disabled={loading || aiAnalyzing}
+            className="rounded-lg p-1 text-slate-400 hover:text-white disabled:opacity-50"
           >
             <X size={20} />
           </button>
-
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-5">
+        <form
+          onSubmit={handleSubmit}
+          className="mt-4 space-y-4"
+        >
 
-          {/* Title */}
+          {/* TITLE */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Item Title
-            </label>
+            <div className="mb-1.5 flex items-center justify-between">
 
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Engineering Mathematics Book"
-              maxLength={100}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-slate-300">
-                Description
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                Title *
               </label>
 
               <button
                 type="button"
                 onClick={handleAiOptimize}
-                disabled={aiAnalyzing || !title.trim()}
-                className="flex items-center gap-1.5 text-xs font-medium text-indigo-400 hover:text-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed"
+                disabled={aiAnalyzing || loading}
+                className="flex items-center gap-1 text-[11px] font-medium text-indigo-400 transition hover:text-indigo-300 disabled:opacity-50"
               >
                 {aiAnalyzing ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    Optimizing...
-                  </>
+                  <Loader2
+                    size={12}
+                    className="animate-spin"
+                  />
                 ) : (
-                  <>
-                    <Sparkles size={14} />
-                    Optimize with AI
-                  </>
+                  <Sparkles size={12} />
                 )}
+
+                <span>
+                  {aiAnalyzing
+                    ? 'Polishing...'
+                    : 'AI Polish'}
+                </span>
               </button>
             </div>
 
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Describe the item's condition, brand, age, reason for selling, etc."
-              rows={4}
-              maxLength={1000}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 resize-none"
+            <input
+              type="text"
+              required
+              maxLength={120}
+              placeholder="e.g., Hercules Gear Cycle / Casio fx-991EX"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
             />
-
-            <p className="text-[11px] text-slate-500 mt-1 text-right">
-              {description.length}/1000
-            </p>
           </div>
 
-          {/* Price + Category */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* PRICE + MRP + CATEGORY */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 
-            {/* Price */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Price (₹)
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                Campus Price (₹) *
               </label>
 
               <input
                 type="number"
                 min="0"
-                step="1"
+                required
+                placeholder="250"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                placeholder="e.g. 500"
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
               />
             </div>
 
-            {/* Category */}
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Category
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                Retail MRP (₹)
+                <span className="ml-1 lowercase font-normal text-slate-500">
+                  (opt)
+                </span>
+              </label>
+
+              <input
+                type="number"
+                min="0"
+                placeholder="800"
+                value={originalPrice}
+                onChange={(e) =>
+                  setOriginalPrice(e.target.value)
+                }
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                Category *
               </label>
 
               <select
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-300 focus:outline-none focus:border-indigo-500"
+                onChange={(e) =>
+                  setCategory(e.target.value)
+                }
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
               >
-                {CATEGORIES.map((itemCategory) => (
+                {LISTING_CATEGORIES.map((cat) => (
                   <option
-                    key={itemCategory}
-                    value={itemCategory}
+                    key={cat}
+                    value={cat}
                   >
-                    {itemCategory}
+                    {cat}
                   </option>
                 ))}
               </select>
@@ -463,116 +700,504 @@ Use exactly this structure:
 
           </div>
 
-          {/* Location */}
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Meetup Location
-            </label>
+          {/* FLASH CLEARANCE */}
+          <div className="rounded-xl border border-orange-800/40 bg-orange-950/20 p-3.5">
 
-            <div className="relative">
-              <MapPin
-                size={17}
-                className="absolute left-3 top-3 text-slate-500"
+            <div className="flex items-center justify-between">
+
+              <div>
+                <label className="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-orange-400">
+                  <Flame size={14} />
+                  Flash Clearance
+                </label>
+
+                <p className="mt-0.5 text-[11px] text-slate-400">
+                  Mark this listing as a limited-time deal.
+                </p>
+              </div>
+
+              <input
+                type="checkbox"
+                checked={isClearance}
+                onChange={(e) =>
+                  setIsClearance(e.target.checked)
+                }
+                className="h-4 w-4 cursor-pointer rounded border-slate-700 bg-slate-950 text-orange-500"
               />
+            </div>
+
+            {isClearance && (
+              <div className="mt-3">
+
+                <label className="mb-1 block text-[11px] text-slate-400">
+                  Clearance duration
+                </label>
+
+                <select
+                  value={clearanceHours}
+                  onChange={(e) =>
+                    setClearanceHours(e.target.value)
+                  }
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white focus:border-orange-500 focus:outline-none"
+                >
+                  <option value="6">6 hours</option>
+                  <option value="12">12 hours</option>
+                  <option value="24">24 hours</option>
+                  <option value="48">48 hours</option>
+                  <option value="72">72 hours</option>
+                </select>
+
+              </div>
+            )}
+
+          </div>
+
+          {/* BICYCLE */}
+          {category === 'Bicycles & Mobility' && (
+            <div className="space-y-3 rounded-xl border border-emerald-800/40 bg-emerald-950/20 p-3.5">
+
+              <label className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                <Wrench size={14} />
+                Bicycle Health Card
+              </label>
+
+              <input
+                type="text"
+                placeholder="Frame Serial No. (optional)"
+                value={frameSerialNo}
+                onChange={(e) =>
+                  setFrameSerialNo(e.target.value)
+                }
+                className="w-full rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none"
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+
+                <div>
+                  <span className="mb-1 block text-[10px] text-slate-400">
+                    Tires
+                  </span>
+
+                  <select
+                    value={bikeTires}
+                    onChange={(e) =>
+                      setBikeTires(e.target.value)
+                    }
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 p-2 text-xs text-white"
+                  >
+                    <option>Brand New</option>
+                    <option>Good / Inflated</option>
+                    <option>Worn / Needs Air</option>
+                  </select>
+                </div>
+
+                <div>
+                  <span className="mb-1 block text-[10px] text-slate-400">
+                    Brakes
+                  </span>
+
+                  <select
+                    value={bikeBrakes}
+                    onChange={(e) =>
+                      setBikeBrakes(e.target.value)
+                    }
+                    className="w-full rounded-lg border border-slate-800 bg-slate-950 p-2 text-xs text-white"
+                  >
+                    <option>Fully Functional</option>
+                    <option>Soft / Needs Pad Change</option>
+                  </select>
+                </div>
+
+              </div>
+
+              <div>
+                <span className="mb-1 block text-[10px] text-slate-400">
+                  Gears
+                </span>
+
+                <select
+                  value={bikeGears}
+                  onChange={(e) =>
+                    setBikeGears(e.target.value)
+                  }
+                  className="w-full rounded-lg border border-slate-800 bg-slate-950 p-2 text-xs text-white"
+                >
+                  <option>
+                    Smooth Shifting / Non-Gear
+                  </option>
+                  <option>
+                    Needs Adjustment
+                  </option>
+                  <option>
+                    Not Functional
+                  </option>
+                </select>
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={bikeLock}
+                  onChange={(e) =>
+                    setBikeLock(e.target.checked)
+                  }
+                  className="h-4 w-4 rounded border-slate-700 bg-slate-950"
+                />
+
+                <span>
+                  Includes original bill and/or cycle lock
+                </span>
+              </label>
+
+            </div>
+          )}
+
+          {/* TEXTBOOK */}
+          {category === 'Textbooks & Notes' && (
+            <div className="space-y-2 rounded-xl border border-indigo-800/40 bg-indigo-950/20 p-3.5">
+
+              <label className="flex items-center gap-1.5 text-xs font-bold text-indigo-300">
+                <FileText size={14} />
+                Academic Perks
+              </label>
+
+              <select
+                value={syllabusYear}
+                onChange={(e) =>
+                  setSyllabusYear(e.target.value)
+                }
+                className="w-full rounded-lg border border-slate-800 bg-slate-950 p-2 text-xs text-white"
+              >
+                <option value="2024-2025 Revised Autonomous Scheme">
+                  2024-2025 Revised Autonomous Scheme
+                </option>
+
+                <option value="2022-2023 Scheme">
+                  2022-2023 Scheme
+                </option>
+              </select>
+
+              <label className="flex cursor-pointer items-center gap-2 pt-1 text-xs text-indigo-200">
+
+                <input
+                  type="checkbox"
+                  checked={includesPyq}
+                  onChange={(e) =>
+                    setIncludesPyq(e.target.checked)
+                  }
+                  className="h-4 w-4 rounded border-slate-700 bg-slate-950"
+                />
+
+                <span>
+                  Includes solved Mid-Sem/End-Sem papers or formula sheet
+                </span>
+
+              </label>
+
+            </div>
+          )}
+
+          {/* DELIVERY */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+                <label className="flex items-center gap-1 text-xs font-bold text-emerald-400">
+                  <Truck size={14} />
+                  Hostel Gate Delivery
+                </label>
+
+                <p className="text-[11px] text-slate-400">
+                  Offer delivery to the buyer's hostel gate.
+                </p>
+              </div>
+
+              <input
+                type="checkbox"
+                checked={offersDelivery}
+                onChange={(e) =>
+                  setOffersDelivery(e.target.checked)
+                }
+                className="h-4 w-4 cursor-pointer rounded border-slate-700 bg-slate-900"
+              />
+
+            </div>
+
+            {offersDelivery && (
+              <div className="mt-3">
+
+                <label className="mb-1 block text-[11px] text-slate-400">
+                  Delivery tip (₹)
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  value={deliveryTip}
+                  onChange={(e) =>
+                    setDeliveryTip(e.target.value)
+                  }
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white"
+                />
+
+              </div>
+            )}
+
+          </div>
+
+          {/* BUYBACK */}
+          <div className="rounded-xl border border-slate-800 bg-slate-950 p-3">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+                <label className="flex items-center gap-1 text-xs font-bold text-indigo-400">
+                  <RotateCcw size={14} />
+                  Promised Buy-Back
+                </label>
+
+                <p className="text-[11px] text-slate-400">
+                  Agree to buy the item back later.
+                </p>
+              </div>
+
+              <input
+                type="checkbox"
+                checked={hasBuyback}
+                onChange={(e) =>
+                  setHasBuyback(e.target.checked)
+                }
+                className="h-4 w-4 cursor-pointer rounded border-slate-700 bg-slate-900"
+              />
+
+            </div>
+
+            {hasBuyback && (
+              <div className="mt-3">
+
+                <label className="mb-1 block text-[11px] text-slate-400">
+                  Buyback Price (₹)
+                </label>
+
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="300"
+                  value={buybackPrice}
+                  onChange={(e) =>
+                    setBuybackPrice(e.target.value)
+                  }
+                  className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white"
+                />
+
+              </div>
+            )}
+
+          </div>
+
+          {/* LOCATION */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+            <div>
+
+              <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                <MapPin
+                  size={14}
+                  className="text-emerald-400"
+                />
+                KIIT Pickup Hotspot
+              </label>
 
               <select
                 value={campusZone}
-                onChange={(e) => setCampusZone(e.target.value)}
-                className="w-full bg-slate-800 border border-slate-700 rounded-xl pl-10 pr-4 py-3 text-sm text-slate-300 focus:outline-none focus:border-indigo-500"
+                onChange={(e) =>
+                  setCampusZone(e.target.value)
+                }
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
               >
-                {CAMPUS_HOTSPOTS.map((location) => (
+                {PICKUP_HOTSPOTS.map((zone) => (
                   <option
-                    key={location}
-                    value={location}
+                    key={zone}
+                    value={zone}
                   >
-                    {location}
+                    {zone}
                   </option>
                 ))}
               </select>
+
             </div>
+
+            <div>
+
+              <label className="mb-1.5 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-300">
+                <Clock
+                  size={14}
+                  className="text-amber-400"
+                />
+                Meetup Window
+              </label>
+
+              <select
+                value={meetupWindow}
+                onChange={(e) =>
+                  setMeetupWindow(e.target.value)
+                }
+                className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
+              >
+                {MEETUP_WINDOWS.map((window) => (
+                  <option
+                    key={window}
+                    value={window}
+                  >
+                    {window}
+                  </option>
+                ))}
+              </select>
+
+            </div>
+
           </div>
 
-          {/* Image Upload */}
+          {/* TARGET STUDENTS */}
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-              Item Image
+
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">
+              Target Students
             </label>
 
+            <select
+              value={targetSemester}
+              onChange={(e) =>
+                setTargetSemester(e.target.value)
+              }
+              className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2.5 text-sm text-white focus:border-indigo-500 focus:outline-none"
+            >
+              {SEMESTER_BUNDLES?.map((bundle) => (
+                <option
+                  key={bundle}
+                  value={bundle}
+                >
+                  {bundle}
+                </option>
+              ))}
+            </select>
+
+          </div>
+
+          {/* DESCRIPTION */}
+          <div>
+
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">
+              Description
+            </label>
+
+            <textarea
+              rows={3}
+              maxLength={1000}
+              placeholder="Condition details, bundle inclusions, pickup notes..."
+              value={description}
+              onChange={(e) =>
+                setDescription(e.target.value)
+              }
+              className="w-full resize-none rounded-xl border border-slate-800 bg-slate-950 px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none"
+            />
+
+            <div className="mt-1 text-right text-[10px] text-slate-600">
+              {description.length}/1000
+            </div>
+
+          </div>
+
+          {/* PHOTO */}
+          <div>
+
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-slate-300">
+              Item Photo
+            </label>
+
+            <input
+              type="file"
+              accept="image/*"
+              ref={fileInputRef}
+              onChange={handleImageChange}
+              className="hidden"
+            />
+
             {imagePreview ? (
-              <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-slate-800">
+              <div className="relative flex h-36 w-full items-center justify-center overflow-hidden rounded-xl border border-slate-800 bg-slate-950">
 
                 <img
                   src={imagePreview}
                   alt="Listing preview"
-                  className="w-full h-64 object-cover"
+                  className="h-full w-full object-contain"
                 />
 
                 <button
                   type="button"
                   onClick={handleRemoveImage}
-                  className="absolute top-3 right-3 w-9 h-9 flex items-center justify-center rounded-xl bg-black/70 text-white hover:bg-black/90 transition"
+                  className="absolute right-2 top-2 rounded-lg bg-black/70 p-1.5 text-white hover:bg-black"
                 >
-                  <X size={18} />
+                  <X size={16} />
                 </button>
 
               </div>
             ) : (
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-8 flex flex-col items-center justify-center text-center transition"
+                onClick={() =>
+                  fileInputRef.current?.click()
+                }
+                className="flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-800 bg-slate-950/40 p-5 text-slate-400 hover:border-slate-700"
               >
-                <div className="w-12 h-12 rounded-xl bg-slate-800 flex items-center justify-center text-slate-400 mb-3">
-                  <Upload size={22} />
-                </div>
+                <Upload
+                  size={22}
+                  className="mb-1 text-slate-500"
+                />
 
-                <p className="text-sm font-medium text-slate-300">
-                  Upload an image
-                </p>
+                <span className="text-xs font-medium">
+                  Upload photo
+                </span>
 
-                <p className="text-xs text-slate-500 mt-1">
-                  PNG, JPG or WEBP • Maximum 5MB
-                </p>
+                <span className="mt-1 text-[10px] text-slate-600">
+                  JPG, PNG, WEBP • Max 5MB
+                </span>
               </button>
             )}
 
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageChange}
-              className="hidden"
-            />
           </div>
 
-          {/* Buttons */}
-          <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2">
+          {/* ACTIONS */}
+          <div className="flex items-center justify-end space-x-3 border-t border-slate-800 pt-3">
 
             <button
               type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1 px-4 py-3 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition text-sm font-medium disabled:opacity-50"
+              onClick={handleClose}
+              disabled={loading || aiAnalyzing}
+              className="rounded-xl px-4 py-2 text-xs font-medium text-slate-400 hover:text-white disabled:opacity-50"
             >
               Cancel
             </button>
 
             <button
               type="submit"
-              disabled={loading}
-              className="flex-1 px-4 py-3 rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={loading || aiAnalyzing}
+              className="flex items-center space-x-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {loading ? (
-                <>
-                  <Loader2
-                    size={18}
-                    className="animate-spin"
-                  />
-                  Creating...
-                </>
-              ) : (
-                'Create Listing'
+
+              {loading && (
+                <Loader2
+                  size={14}
+                  className="animate-spin"
+                />
               )}
+
+              <span>
+                {loading
+                  ? 'Publishing...'
+                  : 'Publish Listing'}
+              </span>
+
             </button>
 
           </div>

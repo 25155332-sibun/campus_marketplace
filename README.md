@@ -1,201 +1,148 @@
-# CampusMarket: System Architecture & Research Documentation
+```markdown
+# CampusMarket 🎓📦
 
-## 1. Executive Summary & Problem Statement
+> **Privacy-first, peer-to-peer campus marketplace designed for university students.**  
+> Trade textbooks, bicycles, calculators, lab drafters, and hostel essentials without broker fees, middlemen, or exposing personal phone numbers.
 
-Traditional university classifieds rely on fragmented WhatsApp groups, Telegram channels, and unstructured social forums. This creates three critical vulnerabilities:
-
-* **Trust & Identity Deficits:** Anonymity leads to rampant payment fraud and impersonation.
-* **Friction in Cataloging:** Students post unstandardized, vague blurbs lacking clear condition or fair pricing benchmarks.
-* **Campus Safety Risks:** Ad-hoc peer transactions lead to hazardous off-campus meetups and off-platform phishing attempts.
-
-**CampusMarket** resolves these structural issues by marrying a verified campus trust network (`.ac.in` domain gating) with **deterministic database constraints** (PostgreSQL RLS, automated triggers) and **two specialized Gemini agent workflows** (Creator Copilot & Chat Safety Sentinel).
+🌐 **Live Deployment**: [https://campusmarketplace-five.vercel.app/](https://campusmarketplace-five.vercel.app/)
 
 ---
 
-## 2. Technical Stack & Architectural Topology
+## 🌟 Core Highlights
 
-| Layer | Technology | Primary Role |
-| --- | --- | --- |
-| **Client Engine** | React 19 (Vite SPA) | Fast reactive client, route management via React Router 7. |
-| **Styling Framework** | Tailwind CSS | Dark-first design system with mobile-responsive flex/grid architecture. |
-| **Backend & Persistence** | Supabase (PostgreSQL 15) | Relational store, foreign keys, constraints, and audit trails. |
-| **Data Isolation** | PostgreSQL Row-Level Security (RLS) | Declarative access control enforced directly at the database engine. |
-| **Live Sync** | Supabase Realtime (WebSockets) | Sub-100ms bidirectional event streaming for chat synchronization. |
-| **Binary Assets** | Supabase Storage | Multi-tenant bucket storage for listing image assets. |
-| **Intelligence Engine** | Google Gemini API (`gemini-3.6-flash`) | Structured JSON generation (Copilot) & zero-shot classification (Sentinel). |
-| **Feedback & UX** | `sonner` + `lucide-react` | Optimistic feedback, stacked toast orchestration, and iconography. |
+* **Privacy-First Architecture**: No phone numbers are published publicly. Contact exchanges are conducted securely without unsolicited messaging.
+* **14-Day Automated Freshness Filter**: Automatically archives stale items older than 14 days to keep listings active and verified.
+* **Campus-Specific Meetup Hotspots**: Filter listings across real campus hubs (Library, Academic Blocks, Food Courts, and Hostels).
+* **Bicycle Health Card & Ownership Serial Log**: Records stamped frame serials to verify legitimate transfers before hostel gates and security guards.
+* **Semester Bundles & Syllabus Verification**: Tag items with academic curriculum regulations and attach solved mid-sem/end-sem notes or formula sheets.
+* **Hostel Gate Porter Option**: Support for door-to-gate delivery with an optional ₹30 porter tip.
+* **Printable Door/Lift Poster Generator**: Instant A4 flyer generation with dynamic QR codes for hostel bulletin boards and lift notices.
+* **1-Tap Social Batch Sharing**: Formats clean summary cards with deep links for distribution across academic section and wing groups.
+* **Safe Exchange Hubs**: In-app guidance showcasing recommended exchange spots covered by active security and CCTV.
 
 ---
 
-## 3. Database Schema & Relational Integrity
+## 🛠️ Tech Stack
 
-The relational backbone enforces referential integrity across the marketplace lifecycle:
+* **Frontend**: React (Vite), Tailwind CSS, Lucide React
+* **Backend / Database**: Supabase (PostgreSQL, Row-Level Security, Storage)
+* **AI Engine**: Google Gemini 3.6 Flash (Intelligent listing title & description optimization via SDK)
+* **Deployment**: Vercel ([Live Link](https://campusmarketplace-five.vercel.app/))
+* **Toasts / Alerts**: Sonner
+* **QR Generation**: `qrcode.react`
+
+---
+
+## 📁 Repository Structure
 
 ```text
-  [auth.users] (Supabase Auth)
-       │
-       ▼
-  [public.profiles] ──(1:N)──► [public.listings] ──(1:N)──► [public.conversations]
-       ▲                              │                              │
-       │                              │ (1:N)                        │ (1:N)
-       └──────(1:N)────── [public.reviews]                    [public.messages]
-
-```
-
-### Core Schema Specifications
-
-* **`profiles`**
-* `id` (`uuid`, PK, references `auth.users.id` on delete cascade)
-* `full_name` (`text`), `avatar_url` (`text`)
-* `rating_avg` (`numeric(3,2)`, default `0.00`)
-* `rating_count` (`integer`, default `0`)
-
-
-* **`listings`**
-* `id` (`uuid`, PK, default `gen_random_uuid()`)
-* `seller_id` (`uuid`, FK references `profiles.id`)
-* `title` (`text`, NOT NULL), `description` (`text`)
-* `price` (`numeric(10,2)`, check `price >= 0`)
-* `category` (`text`, check `category in ('Books', 'Cycles', 'Electronics', 'Others')`)
-* `location` (`text`, campus landmark)
-* `images` (`text[]`, Supabase Storage CDN URLs)
-* `status` (`text`, default `'active'`, check `status in ('active', 'sold', 'archived')`)
-* `created_at` (`timestamptz`, default `now()`)
-
-
-* **`conversations` & `messages**`
-* Tracks pairwise inquiries per listing (`buyer_id`, `seller_id`, `listing_id`).
-* Unique constraint on `(listing_id, buyer_id)` prevents duplicate threads.
-* `messages` table streams payloads via Postgres Realtime replication slot.
-
-
-* **`reviews`**
-* `seller_id` (`uuid`, FK references `profiles.id`)
-* `reviewer_id` (`uuid`, FK references `profiles.id`)
-* `rating` (`integer`, check `rating between 1 and 5`)
-* `comment` (`text`)
-
-
-
-### Automated SQL Trigger: Seller Reputation Calculation
-
-Reputation ratings are computed atomically in the database to prevent client-side manipulation:
-
-```sql
-CREATE OR REPLACE FUNCTION update_seller_rating()
-RETURNS TRIGGER AS $$
-BEGIN
-  UPDATE public.profiles
-  SET 
-    rating_count = (SELECT COUNT(*) FROM public.reviews WHERE seller_id = NEW.seller_id),
-    rating_avg   = (SELECT COALESCE(ROUND(AVG(rating)::numeric, 2), 0.00) 
-                    FROM public.reviews WHERE seller_id = NEW.seller_id)
-  WHERE id = NEW.seller_id;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_review_created
-AFTER INSERT OR UPDATE ON public.reviews
-FOR EACH ROW EXECUTE FUNCTION update_seller_rating();
+src/
+├── components/
+│   ├── AuthModal.jsx              # Student authentication & session modal
+│   ├── CampusLeaderboard.jsx      # Collective trades & hotspot activity tracker
+│   ├── CreateDemandModal.jsx      # Campus ask modal (+1 demand pooling)
+│   ├── CreateListingModal.jsx     # Listing form with Gemini AI & campus perks
+│   ├── DemandCard.jsx             # Demand item card with share triggers
+│   ├── FooterAbout.jsx            # Dark-themed student mission & email contact
+│   ├── HeroBanner.jsx             # Category shortcuts & feature callouts
+│   ├── ListingCard.jsx            # Product card with badges & share triggers
+│   ├── Navbar.jsx                 # Main navigation bar with auth & routing
+│   ├── PrintableNoticeModal.jsx   # A4 flyer preview with scannable QR code
+│   ├── ReviewModal.jsx            # Peer trade ratings & verification reviews
+│   └── SafeMeetupModal.jsx        # Safe exchange spots & security guide
+├── constants/
+│   └── campus.js                  # Campus landmarks, categories, & meetup slots
+├── context/
+│   └── AuthContext.jsx            # Supabase user authentication provider
+├── lib/
+│   ├── gemini.js                  # Gemini 3.6 Flash client & AI optimization helper
+│   └── supabase.js                # Supabase client instantiation
+└── pages/
+    ├── Chat.jsx                   # Real-time peer-to-peer messaging
+    ├── Home.jsx                   # Central unified marketplace & demand feed
+    ├── Inbox.jsx                  # Direct message threads & trade inquiries
+    └── ListingDetail.jsx          # Detailed item view with seller context
 
 ```
 
 ---
 
-## 4. Multi-Agent AI Implementation Framework
+## 🗄️ Database Schema (Supabase)
 
-The platform employs a two-pronged edge-agent design running on `gemini-3.6-flash`.
+### `listings` Table Extensions
 
-```text
- ┌──────────────────────────────────────────────────────────────────┐
- │                         React Frontend                           │
- └──────────────┬───────────────────────────────────┬───────────────┘
-                │ (Rough draft)                     │ (Live message)
-                ▼                                   ▼
- ┌──────────────────────────────┐    ┌──────────────────────────────┐
- │   Agent 1: Creator Copilot   │    │   Agent 2: Safety Sentinel   │
- ├──────────────────────────────┤    ├──────────────────────────────┤
- │ * Input Sanitization         │    │ * Scam/Phishing Detection    │
- │ * Schema Enforcement (JSON)  │    │ * High-Risk Meetup Flagging  │
- │ * Fair Campus Price Guess    │    │ * Non-intrusive Safe Advice  │
- │ * Taxonomy Matching          │    │ * Latency Bound: < 400ms     │
- └──────────────────────────────┘    └──────────────────────────────┘
+```sql
+ALTER TABLE listings 
+ADD COLUMN IF NOT EXISTS target_semester TEXT DEFAULT 'General',
+ADD COLUMN IF NOT EXISTS is_clearance BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS clearance_deadline TIMESTAMPTZ,
+ADD COLUMN IF NOT EXISTS frame_serial_no TEXT,
+ADD COLUMN IF NOT EXISTS notes_preview_url TEXT,
+ADD COLUMN IF NOT EXISTS syllabus_year TEXT,
+ADD COLUMN IF NOT EXISTS offers_hostel_delivery BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS delivery_tip_amount NUMERIC DEFAULT 30,
+ADD COLUMN IF NOT EXISTS promised_buyback BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS buyback_price NUMERIC,
+ADD COLUMN IF NOT EXISTS includes_pyq_notes BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS bike_tires_condition TEXT,
+ADD COLUMN IF NOT EXISTS bike_brakes_condition TEXT,
+ADD COLUMN IF NOT EXISTS bike_gears_condition TEXT,
+ADD COLUMN IF NOT EXISTS bike_has_lock_or_bill BOOLEAN DEFAULT false;
 
 ```
 
-### Agent 1: The Listing Creator Copilot
-
-* **Objective:** Remove seller friction and reduce marketplace catalog noise.
-* **Mechanism:** Accepts rough notes via the UI, applies a domain-specific system prompt, and enforces strict JSON response formatting (`responseMimeType: "application/json"`).
-* **Taxonomy Alignment:** Dynamically normalizes ad-hoc descriptions into valid database enum categories (`Books`, `Cycles`, `Electronics`, `Others`) and outputs realistic INR pricing benchmarks.
-
-### Agent 2: The Real-Time Chat Safety Sentinel
-
-* **Objective:** Intercept malicious activity and physical safety risks before they materialize.
-* **Inference Pipeline:** Evaluates incoming and outgoing messages against three threat vectors:
-1. `OFF_PLATFORM_SCAM`: Advance-fee fraud, UPI collection links, phishing, OTP solicitation.
-2. `RISKY_MEETUP`: Proposing off-campus, unlit, or late-night transactions.
-3. `SUSPICIOUS_CONTACT`: Coercive redirection to external unmonitored chat apps.
-
-
-* **UX Strategy:** Displays non-blocking, actionable micro-warnings (e.g., *"Meet during daylight at SAC or Library"*) without interrupting genuine interactions.
-
----
-
-## 5. Security & Isolation Matrix (RLS Policies)
-
-Access is strictly mediated through PostgreSQL declarative Row-Level Security:
+### `bicycle_transfers` Table
 
 ```sql
--- LISTINGS: Publicly readable; mutations restricted to resource owners
-ALTER TABLE listings ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Anyone can view active listings"
-ON listings FOR SELECT USING (true);
-
-CREATE POLICY "Users can create listings"
-ON listings FOR INSERT WITH CHECK (auth.uid() = seller_id);
-
-CREATE POLICY "Sellers can update their own listings"
-ON listings FOR UPDATE USING (auth.uid() = seller_id);
-
--- MESSAGES: Only conversation participants can select or insert
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Participants can read messages"
-ON messages FOR SELECT USING (
-  EXISTS (
-    SELECT 1 FROM conversations c
-    WHERE c.id = messages.conversation_id
-      AND (c.buyer_id = auth.uid() OR c.seller_id = auth.uid())
-  )
-);
-
-CREATE POLICY "Participants can send messages"
-ON messages FOR INSERT WITH CHECK (
-  auth.uid() = sender_id AND
-  EXISTS (
-    SELECT 1 FROM conversations c
-    WHERE c.id = conversation_id
-      AND (c.buyer_id = auth.uid() OR c.seller_id = auth.uid())
-  )
+CREATE TABLE IF NOT EXISTS bicycle_transfers (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  listing_id UUID REFERENCES listings(id) ON DELETE CASCADE,
+  seller_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  buyer_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  buyer_roll_no TEXT NOT NULL,
+  seller_roll_no TEXT NOT NULL,
+  frame_serial_no TEXT NOT NULL,
+  bicycle_model TEXT NOT NULL,
+  transferred_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 ```
 
 ---
 
-## 6. Research Benchmarks & Production Readiness
+## 🚀 Deployment
 
-### Observed Operational Metrics
+* **Live URL**: [https://campusmarketplace-five.vercel.app/](https://campusmarketplace-five.vercel.app/)
 
-* **AI Copilot Latency:** ~600ms–850ms round-trip via `gemini-3.6-flash`, achieving zero JSON parsing failures under structured schema controls.
-* **Safety Sentinel Overhead:** Runs asynchronously off the main rendering path; does not block message transmission to Supabase.
-* **Bundle Efficiency:** Single-Page App (SPA) output sits under ~250 kB gzipped after tree-shaking Vite asset transforms.
+### 1. Environment Variables
 
-### Deployment Checklist
+Ensure these keys are configured in your deployment dashboard:
 
-1. **Environment Variables:** Verify `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_GEMINI_API_KEY` are provisioned on your production host (Vercel/Netlify).
-2. **SPA Fallback Routing:** Confirm `vercel.json` rewrite or `public/_redirects` is in place to support direct URL hits on dynamic paths (`/listing/:id`, `/chat/:conversationId`).
-3. **Storage CORS Configuration:** Confirm your Supabase Storage bucket allows `GET` and `POST` access from your production domain.
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_GEMINI_API_KEY=your_gemini_api_key
+
+```
+
+### 2. Single-Page App Routing Configuration
+
+Ensure `vercel.json` exists in your project root to handle client-side routing:
+
+```json
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}
+
+```
+
+---
+
+## 📬 Contact & Support
+
+* **Email Support**: sks07022007@gmail.com
+* **Location**: Bhubaneswar, India
+
+```
+
+```
