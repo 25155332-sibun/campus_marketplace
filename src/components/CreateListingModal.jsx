@@ -232,52 +232,62 @@ export default function CreateListingModal({ isOpen, onClose }) {
 
     try {
       const prompt = `
-Rewrite this student marketplace listing for KIIT.
+Rewrite the student's existing KIIT campus marketplace listing.
 
-Make the title and description:
-- clear
-- concise
-- trustworthy
-- appealing to university students
-- honest and not exaggerated
+This is an editing task, not a content-generation task:
+- Improve the wording, grammar, clarity, and readability of the title and description.
+- Preserve the student's meaning and every factual detail they provided.
+- Do not invent a brand, model, condition, price, feature, quantity, location, or availability.
+- Do not add generic claims or details that are not in the input.
+- The selected category is authoritative: make the rewritten title clearly relevant to that category, but never change the category or make the item sound like another category.
+- Keep the title concise and the description easy to scan.
+- If the description is empty, return an empty suggestedDescription instead of inventing one.
 
-Title:
+Selected category: ${category}
+
+Existing title:
 ${title}
 
-Description:
-${description || 'None provided'}
-
-Category:
-${category}
+Existing description:
+${description}
 
 Return ONLY valid JSON in this exact format:
-
 {
-  "suggestedTitle": "...",
-  "suggestedDescription": "..."
-}
-`;
+  "suggestedTitle": "rewritten title",
+  "suggestedDescription": "rewritten description"
+}`;
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: prompt,
-                  },
-                ],
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+      let response;
+      try {
+        response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+            body: JSON.stringify({
+              contents: [{
+                parts: [{ text: prompt }],
+              }],
+              generationConfig: {
+                responseMimeType: 'application/json',
+                temperature: 0.2,
+                maxOutputTokens: 256,
+                thinkingConfig: {
+                  thinkingLevel: 'minimal',
+                },
               },
-            ],
-          }),
-        }
-      );
+            }),
+          }
+        );
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const data = await response.json();
 
@@ -313,7 +323,9 @@ Return ONLY valid JSON in this exact format:
     } catch (error) {
       console.error('AI optimization error:', error);
       toast.error(
-        error.message || 'AI optimization failed'
+        error.name === 'AbortError'
+          ? 'AI optimization timed out. Please try again.'
+          : error.message || 'AI optimization failed'
       );
     } finally {
       setAiAnalyzing(false);
@@ -411,17 +423,13 @@ Return ONLY valid JSON in this exact format:
             });
 
         if (uploadError) {
-          throw new Error(
-            `Image upload failed: ${uploadError.message}`
-          );
+          throw new Error(`Image upload failed: ${uploadError.message}`);
         }
 
         uploadedFilePath = fileName;
-
-        const { data: publicData } =
-          supabase.storage
-            .from('listing-images')
-            .getPublicUrl(fileName);
+        const { data: publicData } = supabase.storage
+          .from('listing-images')
+          .getPublicUrl(fileName);
 
         imageUrl = publicData?.publicUrl || null;
       }
@@ -445,7 +453,7 @@ Return ONLY valid JSON in this exact format:
       // LISTING DATA
       // -----------------------------
       const listingData = {
-        user_id: user.id,
+        seller_id: user.id,
 
         title: title.trim(),
         description: description.trim(),
@@ -466,7 +474,7 @@ Return ONLY valid JSON in this exact format:
 
         image_url: imageUrl,
 
-        is_sold: false,
+        status: 'active',
 
         // Flash clearance
         is_clearance: isClearance,
@@ -527,10 +535,26 @@ Return ONLY valid JSON in this exact format:
       // -----------------------------
       // INSERT
       // -----------------------------
-      const { error: insertError } =
-        await supabase
+      let { error: insertError } = await supabase
+        .from('listings')
+        .insert([listingData]);
+
+      // Older databases may not have the optional image column yet.
+      if (insertError?.message?.includes("'image_url'")) {
+        if (uploadedFilePath) {
+          await supabase.storage
+            .from('listing-images')
+            .remove([uploadedFilePath]);
+          uploadedFilePath = null;
+        }
+
+        const listingWithoutImage = { ...listingData };
+        delete listingWithoutImage.image_url;
+
+        ({ error: insertError } = await supabase
           .from('listings')
-          .insert([listingData]);
+          .insert([listingWithoutImage]));
+      }
 
       if (insertError) {
         throw new Error(insertError.message);
@@ -543,8 +567,6 @@ Return ONLY valid JSON in this exact format:
     } catch (error) {
       console.error('Listing creation error:', error);
 
-      // If DB insertion fails after image upload,
-      // remove the uploaded image so storage isn't polluted.
       if (uploadedFilePath) {
         await supabase.storage
           .from('listing-images')
