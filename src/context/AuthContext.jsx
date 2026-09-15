@@ -1,13 +1,17 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 const AuthContext = createContext({});
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) {
+      return undefined;
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -24,6 +28,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const signUp = async (email, password, fullName) => {
+    if (!isSupabaseConfigured) throw new Error('Supabase is not configured. Add the local environment variables first.');
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -42,10 +48,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signIn = (email, password) => {
+    if (!isSupabaseConfigured) return Promise.reject(new Error('Supabase is not configured. Add the local environment variables first.'));
+
     return supabase.auth.signInWithPassword({ email, password });
   };
 
   const signOut = () => {
+    if (!isSupabaseConfigured) return Promise.resolve();
+
     return supabase.auth.signOut();
   };
 
