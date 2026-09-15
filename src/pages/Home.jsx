@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import HeroBanner from '../components/HeroBanner';
 import CampusLeaderboard from '../components/CampusLeaderboard';
 import ListingCard from '../components/ListingCard';
@@ -60,6 +60,13 @@ export default function Home() {
     const loadData = async () => {
       setLoading(true);
 
+      if (!isSupabaseConfigured) {
+        setListings([]);
+        setDemands([]);
+        setLoading(false);
+        return;
+      }
+
       if (activeTab === 'marketplace') {
         // 14-Day Stale Filter Guard
         const twoWeeksAgo = new Date();
@@ -68,7 +75,7 @@ export default function Home() {
         let query = supabase
           .from('listings')
           .select('*')
-          .eq('is_sold', false)
+          .neq('status', 'sold')
           .gte('created_at', twoWeeksAgo.toISOString())
           .order('created_at', { ascending: false });
 

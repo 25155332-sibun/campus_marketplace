@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { Trophy, TrendingUp, Flame, MapPin } from 'lucide-react';
 
 export default function CampusLeaderboard() {
@@ -8,15 +8,17 @@ export default function CampusLeaderboard() {
     totalSaved: 0,
     topHotspots: [],
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(isSupabaseConfigured);
 
   useEffect(() => {
+    if (!isSupabaseConfigured) return undefined;
+
     async function loadStats() {
       try {
         // Fetch listings to compute counts & savings
         const { data: listings, error } = await supabase
           .from('listings')
-          .select('campus_zone, price, original_price, is_sold');
+          .select('campus_zone, price, original_price, status');
 
         if (error) throw error;
 
@@ -26,7 +28,7 @@ export default function CampusLeaderboard() {
           const zoneCounts = {};
 
           listings.forEach((item) => {
-            if (item.is_sold) exchangedCount += 1;
+            if (item.status === 'sold') exchangedCount += 1;
 
             if (item.original_price && item.original_price > item.price) {
               savedRupees += Number(item.original_price) - Number(item.price);
@@ -56,6 +58,8 @@ export default function CampusLeaderboard() {
     }
 
     loadStats();
+
+    return undefined;
   }, []);
 
   if (loading) {
