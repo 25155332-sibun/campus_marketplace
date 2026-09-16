@@ -3,19 +3,23 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import ReviewModal from '../components/ReviewModal';
-import { toast } from 'sonner';
-import {
-  ArrowLeft,
-  MessageSquare,
-  ShieldCheck,
-  Tag,
-  CheckCircle2,
-  Star,
-  MapPin,
-  Maximize2,
-  X,
-  Share2,
+import SafeMeetupModal from '../components/SafeMeetupModal';
+import PrintableNoticeModal from '../components/PrintableNoticeModal';
+import { 
+  ArrowLeft, 
+  Share2, 
+  ShieldCheck, 
+  Star, 
+  MessageSquare, 
+  Printer, 
+  Bike,
+  BookOpen,
+  Truck,
+  RotateCcw,
+  Loader2,
+  Calendar
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function ListingDetail() {
   const { id } = useParams();
@@ -23,332 +27,324 @@ export default function ListingDetail() {
   const { user } = useAuth();
 
   const [listing, setListing] = useState(null);
-  const [seller, setSeller] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState('');
   const [isReviewOpen, setIsReviewOpen] = useState(false);
-  const [isImageExpanded, setIsImageExpanded] = useState(false);
+  const [isSafeMeetupOpen, setIsSafeMeetupOpen] = useState(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
 
   useEffect(() => {
-    let isMounted = true;
-
-    if (!id) {
-      navigate('/');
-      return;
-    }
-
-    async function loadData() {
-      setLoading(true);
-      setErrorMsg('');
-
+    async function fetchListing() {
       try {
-        const { data: item, error: itemErr } = await supabase
+        setLoading(true);
+        const { data, error } = await supabase
           .from('listings')
           .select('*')
           .eq('id', id)
-          .maybeSingle();
+          .single();
 
-        if (itemErr) throw itemErr;
-        if (!item) throw new Error('Listing not found');
-
-        if (isMounted) setListing(item);
-
-        const { data: profile, error: profileErr } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', item.seller_id)
-          .maybeSingle();
-
-        if (profileErr) throw profileErr;
-        if (isMounted) setSeller(profile);
+        if (error) throw error;
+        setListing(data);
       } catch (err) {
-        if (isMounted) setErrorMsg(err.message || 'Error loading listing');
+        console.error('Error fetching listing:', err);
+        toast.error('Failed to load listing details');
+        navigate('/');
       } finally {
-        if (isMounted) setLoading(false);
+        setLoading(false);
       }
     }
 
-    loadData();
-    return () => {
-      isMounted = false;
-    };
+    if (id) {
+      fetchListing();
+    }
   }, [id, navigate]);
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: listing?.title || 'CampusMarket Item',
+          text: `Check out ${listing?.title} on CampusMarket!`,
+          url: window.location.href,
+        });
+      } catch (err) {
+        if (err.name !== 'AbortError') copyLinkToClipboard();
+      }
+    } else {
+      copyLinkToClipboard();
+    }
+  };
+
+  const copyLinkToClipboard = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast.success('Link copied to clipboard!');
+  };
 
   const handleStartChat = async () => {
     if (!user) {
       toast.error('Please sign in to message the seller');
       return;
     }
-    if (user.id === listing.seller_id) {
-      toast.error('You cannot message yourself about your own listing');
+    if (user.id === listing?.seller_id) {
+      toast.error("You cannot message yourself on your own listing!");
       return;
     }
-
-    try {
-      const { data: existing, error: findErr } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('listing_id', listing.id)
-        .eq('buyer_id', user.id)
-        .maybeSingle();
-
-      if (findErr) throw findErr;
-
-      if (existing) {
-        navigate(`/chat/${existing.id}`);
-        return;
-      }
-
-      const { data: newConvo, error: createErr } = await supabase
-        .from('conversations')
-        .insert([
-          {
-            listing_id: listing.id,
-            buyer_id: user.id,
-            seller_id: listing.seller_id,
-          },
-        ])
-        .select('id')
-        .single();
-
-      if (createErr) throw createErr;
-      navigate(`/chat/${newConvo.id}`);
-    } catch (err) {
-      toast.error(err.message || 'Could not start conversation');
-    }
-  };
-
-  const handleMarkSold = async () => {
-    try {
-      const { error } = await supabase
-        .from('listings')
-        .update({ status: 'sold' })
-        .eq('id', listing.id);
-
-      if (error) throw error;
-
-      setListing((prev) => ({ ...prev, status: 'sold' }));
-      toast.success('Listing marked as sold!');
-    } catch (err) {
-      toast.error(err.message || 'Failed to update listing status');
-    }
-  };
-
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success('Listing link copied to clipboard!');
-    } catch {
-      toast.error('Failed to copy link');
-    }
+    navigate(`/chat?listing_id=${listing.id}&recipient_id=${listing.seller_id}`);
   };
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 space-y-3 text-slate-400">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm">Loading listing details...</p>
+      <div className="min-h-screen bg-slate-950 text-slate-200 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+          <p className="text-sm text-slate-400">Loading listing details...</p>
+        </div>
       </div>
     );
   }
 
-  if (errorMsg || !listing) {
-    return (
-      <div className="max-w-md mx-auto my-12 p-6 bg-slate-900 border border-slate-800 rounded-2xl text-center space-y-4">
-        <p className="text-red-400 text-sm font-medium">{errorMsg || 'Listing unavailable'}</p>
-        <button
-          onClick={() => navigate('/')}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold rounded-xl transition"
-        >
-          Back to Feed
-        </button>
-      </div>
-    );
-  }
+  if (!listing) return null;
 
-  const isOwner = user?.id === listing.seller_id;
-  const isSold = listing.status === 'sold';
   const displayImage =
-    listing.images?.[0] ||
-    'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?w=1000&q=80';
+    listing.image_url ||
+    listing.image ||
+    'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=1000';
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-20 sm:pb-8">
-      {/* Top Toolbar */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-white transition"
-        >
-          <ArrowLeft size={16} />
-          <span>Back</span>
-        </button>
+    <div className="min-h-screen bg-slate-950 text-slate-100 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto space-y-6">
+        
+        {/* Navigation Bar */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-sm text-slate-400 hover:text-white transition group py-1"
+          >
+            <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />
+            <span>Back</span>
+          </button>
 
-        <button
-          onClick={handleShare}
-          className="flex items-center space-x-1.5 text-xs px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white transition"
-          title="Share Listing"
-        >
-          <Share2 size={14} />
-          <span>Share</span>
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-        {/* Product Photo with Click-to-Expand */}
-        <div
-          onClick={() => setIsImageExpanded(true)}
-          className="relative aspect-square sm:aspect-[4/3] rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 cursor-zoom-in group"
-        >
-          <img
-            src={displayImage}
-            alt={listing.title}
-            className={`w-full h-full object-cover group-hover:scale-105 transition duration-300 ${
-              isSold ? 'grayscale' : ''
-            }`}
-          />
-          {isSold && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-              <span className="px-4 py-1.5 bg-red-600 text-white font-bold text-sm tracking-wide rounded-lg uppercase shadow-lg">
-                Sold Out
-              </span>
-            </div>
-          )}
-          <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-            <span className="p-2.5 rounded-full bg-slate-950/80 text-white backdrop-blur-sm shadow-md">
-              <Maximize2 size={18} />
-            </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsPrintModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition border border-slate-700/60"
+            >
+              <Printer size={14} />
+              <span>Print Poster</span>
+            </button>
+            <button
+              onClick={handleShare}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition border border-slate-700/60"
+            >
+              <Share2 size={14} />
+              <span>Share</span>
+            </button>
           </div>
         </div>
 
-        {/* Product Info & Actions */}
-        <div className="space-y-5">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-950/60 text-indigo-400 border border-indigo-800/80">
-                <Tag size={12} />
-                {listing.category}
-              </span>
+        {/* 2-Column Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+          
+          {/* Left Column: Product Image */}
+          <div className="md:col-span-6 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl relative">
+            <div className="w-full aspect-square bg-slate-950/60 flex items-center justify-center relative overflow-hidden">
+              <img
+                src={displayImage}
+                alt={listing.title}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=1000';
+                }}
+              />
+              {listing.is_clearance && (
+                <div className="absolute top-4 left-4 bg-rose-600/90 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-lg">
+                  Clearance Deal
+                </div>
+              )}
+            </div>
+          </div>
 
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-                <MapPin size={12} className="text-indigo-400" />
-                {listing.location || 'Campus 3'}
+          {/* Right Column: Listing Details */}
+          <div className="md:col-span-6 space-y-6">
+            
+            {/* Badges */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2.5 py-1 text-xs font-medium rounded-md bg-indigo-950/60 border border-indigo-800/60 text-indigo-300">
+                {listing.category || 'General'}
               </span>
-
-              {isSold && (
-                <span className="text-xs px-2.5 py-1 bg-red-950/60 border border-red-800 text-red-400 rounded-full font-semibold">
-                  Closed
+              {listing.location && (
+                <span className="px-2.5 py-1 text-xs font-medium rounded-md bg-slate-800 border border-slate-700/80 text-slate-300">
+                  📍 {listing.location}
+                </span>
+              )}
+              {listing.target_semester && listing.target_semester !== 'General' && (
+                <span className="px-2.5 py-1 text-xs font-medium rounded-md bg-purple-950/60 border border-purple-800/60 text-purple-300">
+                  🎓 {listing.target_semester}
                 </span>
               )}
             </div>
 
-            <h1 className="text-2xl font-bold text-white leading-snug">{listing.title}</h1>
-            <p className="text-3xl font-extrabold text-indigo-400 mt-2">₹{listing.price}</p>
-          </div>
-
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-1">
-            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Description
-            </h4>
-            <p className="text-sm text-slate-200 whitespace-pre-line leading-relaxed">
-              {listing.description || 'No detailed description provided by the seller.'}
-            </p>
-          </div>
-
-          {/* Left: Product Image */}
-<div className="relative w-full aspect-square md:aspect-auto md:h-[420px] bg-slate-800 rounded-2xl overflow-hidden border border-slate-700/60">
-  <img
-    src={listing.image_url || listing.image || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=1000'}
-    alt={listing.title}
-    className="w-full h-full object-cover"
-    onError={(e) => {
-      // Fallback if uploaded link fails or expires
-      e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=1000';
-    }}
-  />
-</div>
-
-          {/* Seller Profile Card */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-semibold text-white">
-                  {seller?.full_name || 'Campus Student'}
+            {/* Title & Price */}
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">
+                {listing.title}
+              </h1>
+              <div className="flex items-baseline gap-3">
+                <span className="text-3xl font-extrabold text-white">
+                  ₹{listing.price}
                 </span>
-                <ShieldCheck size={16} className="text-emerald-400" />
+                {listing.original_price && Number(listing.original_price) > Number(listing.price) && (
+                  <span className="text-sm text-slate-500 line-through">
+                    ₹{listing.original_price}
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-slate-400 flex items-center gap-1">
-                <Star size={12} className="text-amber-400 fill-amber-400" />
-                <span>
-                  {seller?.rating_avg ? `${seller.rating_avg.toFixed(1)} / 5.0` : 'New Seller'}
-                </span>
-                <span>({seller?.rating_count || 0} reviews)</span>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2 border-t border-slate-800/80 pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Description
+              </h3>
+              <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+                {listing.description || 'No detailed description provided by the seller.'}
               </p>
             </div>
 
-            {!isOwner && (
+            {/* Bicycle Specs */}
+            {listing.category === 'Bicycles & Mobility' && (
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-3">
+                <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider">
+                  <Bike size={16} />
+                  <span>Bicycle Health &amp; Verification</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-slate-950/50 p-2.5 rounded-lg border border-slate-800">
+                    <span className="text-slate-500 block">Tires</span>
+                    <span className="text-slate-200 font-medium">{listing.bike_tires_condition || 'Normal'}</span>
+                  </div>
+                  <div className="bg-slate-950/50 p-2.5 rounded-lg border border-slate-800">
+                    <span className="text-slate-500 block">Brakes</span>
+                    <span className="text-slate-200 font-medium">{listing.bike_brakes_condition || 'Functional'}</span>
+                  </div>
+                  <div className="bg-slate-950/50 p-2.5 rounded-lg border border-slate-800">
+                    <span className="text-slate-500 block">Gears</span>
+                    <span className="text-slate-200 font-medium">{listing.bike_gears_condition || 'Non-Gear / Standard'}</span>
+                  </div>
+                  <div className="bg-slate-950/50 p-2.5 rounded-lg border border-slate-800">
+                    <span className="text-slate-500 block">Lock / Bill</span>
+                    <span className="text-slate-200 font-medium">{listing.bike_has_lock_or_bill ? 'Included' : 'Not Included'}</span>
+                  </div>
+                </div>
+                {listing.frame_serial_no && (
+                  <div className="text-[11px] bg-slate-950 p-2 rounded-md border border-slate-800 text-slate-400 font-mono">
+                    Frame Serial: <span className="text-slate-200">{listing.frame_serial_no}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Extras */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {listing.includes_pyq_notes && (
+                <div className="flex items-center gap-2 text-xs bg-emerald-950/40 border border-emerald-800/40 p-2.5 rounded-xl text-emerald-300">
+                  <BookOpen size={15} />
+                  <span>Includes Solved PYQ Notes</span>
+                </div>
+              )}
+              {listing.offers_hostel_delivery && (
+                <div className="flex items-center gap-2 text-xs bg-amber-950/40 border border-amber-800/40 p-2.5 rounded-xl text-amber-300">
+                  <Truck size={15} />
+                  <span>Hostel Delivery (+₹{listing.delivery_tip_amount || 30})</span>
+                </div>
+              )}
+              {listing.promised_buyback && (
+                <div className="flex items-center gap-2 text-xs bg-cyan-950/40 border border-cyan-800/40 p-2.5 rounded-xl text-cyan-300">
+                  <RotateCcw size={15} />
+                  <span>Promised Buyback (₹{listing.buyback_price || listing.price})</span>
+                </div>
+              )}
+              {listing.clearance_deadline && (
+                <div className="flex items-center gap-2 text-xs bg-rose-950/40 border border-rose-800/40 p-2.5 rounded-xl text-rose-300">
+                  <Calendar size={15} />
+                  <span>Clearance deadline set</span>
+                </div>
+              )}
+            </div>
+
+            {/* Seller Card */}
+            <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center font-bold text-indigo-300">
+                  {listing.seller_name ? listing.seller_name.charAt(0).toUpperCase() : 'S'}
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 font-semibold text-sm text-white">
+                    <span>{listing.seller_name || 'Verified Student'}</span>
+                    <ShieldCheck size={15} className="text-emerald-400" />
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-slate-400">
+                    <Star size={12} className="text-amber-400 fill-amber-400" />
+                    <span>{listing.seller_rating ? `${listing.seller_rating} Rating` : 'New Seller (0 reviews)'}</span>
+                  </div>
+                </div>
+              </div>
+
               <button
+                type="button"
                 onClick={() => setIsReviewOpen(true)}
-                className="text-xs text-indigo-400 hover:text-indigo-300 font-medium hover:underline"
+                className="text-xs text-indigo-400 hover:text-indigo-300 font-medium underline"
               >
                 Rate Seller
               </button>
-            )}
-          </div>
+            </div>
 
-          {/* Action Trigger */}
-          <div className="pt-2">
-            {isOwner ? (
-              <button
-                onClick={handleMarkSold}
-                disabled={isSold}
-                className="w-full py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition flex items-center justify-center space-x-2 border border-slate-700"
-              >
-                <CheckCircle2 size={18} className="text-emerald-400" />
-                <span>{isSold ? 'Listing Marked as Sold' : 'Mark Item as Sold'}</span>
-              </button>
-            ) : (
+            {/* Actions */}
+            <div className="space-y-3 pt-2">
               <button
                 onClick={handleStartChat}
-                disabled={isSold}
-                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-semibold rounded-xl text-sm transition flex items-center justify-center space-x-2 shadow-lg shadow-indigo-600/30 active:scale-[0.99]"
+                className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 active:scale-[0.99] text-white font-semibold py-3.5 px-6 rounded-2xl shadow-lg shadow-indigo-600/30 transition text-sm"
               >
-                <MessageSquare size={18} />
-                <span>{isSold ? 'Item No Longer Available' : 'Chat with Seller'}</span>
+                <MessageSquare size={17} />
+                <span>Chat with Seller</span>
               </button>
-            )}
+
+              <button
+                type="button"
+                onClick={() => setIsSafeMeetupOpen(true)}
+                className="w-full text-center text-xs text-slate-400 hover:text-slate-200 transition py-1"
+              >
+                🛡️ View Recommended Campus Safe Meetup Hubs
+              </button>
+            </div>
+
           </div>
         </div>
+
       </div>
 
-      {/* Lightbox Modal */}
-      {isImageExpanded && (
-        <div
-          onClick={() => setIsImageExpanded(false)}
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-in fade-in duration-200"
-        >
-          <button
-            onClick={() => setIsImageExpanded(false)}
-            className="absolute top-5 right-5 text-white bg-slate-800/80 hover:bg-slate-700 p-2.5 rounded-full transition"
-            title="Close Lightbox"
-          >
-            <X size={20} />
-          </button>
-          <img
-            src={displayImage}
-            alt={listing.title}
-            className="max-w-full max-h-[90vh] object-contain rounded-2xl shadow-2xl border border-slate-800"
-          />
-        </div>
+      {isReviewOpen && (
+        <ReviewModal
+          isOpen={isReviewOpen}
+          onClose={() => setIsReviewOpen(false)}
+          sellerId={listing.seller_id}
+          sellerName={listing.seller_name}
+        />
       )}
 
-      {/* Review Modal */}
-      <ReviewModal
-        isOpen={isReviewOpen}
-        onClose={() => setIsReviewOpen(false)}
-        sellerId={listing.seller_id}
-        sellerName={seller?.full_name || 'Seller'}
-      />
+      {isSafeMeetupOpen && (
+        <SafeMeetupModal
+          isOpen={isSafeMeetupOpen}
+          onClose={() => setIsSafeMeetupOpen(false)}
+        />
+      )}
+
+      {isPrintModalOpen && (
+        <PrintableNoticeModal
+          isOpen={isPrintModalOpen}
+          onClose={() => setIsPrintModalOpen(false)}
+          listing={listing}
+        />
+      )}
     </div>
   );
 }
