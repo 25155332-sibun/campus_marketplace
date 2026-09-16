@@ -255,6 +255,19 @@ export default function ListingDetail() {
             </p>
           </div>
 
+          {/* Left: Product Image */}
+<div className="relative w-full aspect-square md:aspect-auto md:h-[420px] bg-slate-800 rounded-2xl overflow-hidden border border-slate-700/60">
+  <img
+    src={listing.image_url || listing.image || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=1000'}
+    alt={listing.title}
+    className="w-full h-full object-cover"
+    onError={(e) => {
+      // Fallback if uploaded link fails or expires
+      e.target.src = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&q=80&w=1000';
+    }}
+  />
+</div>
+
           {/* Seller Profile Card */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
             <div className="space-y-0.5">
